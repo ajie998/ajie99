@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport"
+              content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>网剧搜索与播放</title>
+        <style>
+            /* 基本页面样式 */
+            body {
+                font-family: Arial, sans-serif; /* 设置字体 */
+                margin: 0;
+                padding: 0;
+                overflow: hidden; /* 防止页面滚动 */
+                position: relative;
+                text-align: center;
+                background: url('1.png') no-repeat center center fixed;
+                background-size: cover;
+            }
+
+            /* 添加背景图案效果 */
+            body::before {
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.1); /* 降低遮罩透明度 */
+                pointer-events: none;
+                z-index: 0;
+            }
+
+            /* 控制面板容器 */
+            .container {
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                transform: none;
+                width: 300px;
+                max-width: 300px;
+                background: rgba(0, 0, 0, 0.4);
+                color: #fff;
+                padding: 15px;
+                overflow-y: auto;
+                max-height: 90vh;
+                display: block;
+                opacity: 0.8;
+                transition: all 0.3s ease;
+                z-index: 10;
+                box-sizing: border-box;
+                border-radius: 12px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            }
+
+            /* 悬停时提高不透明度 */
+            .container:hover {
+                opacity: 1;
+            }
+
+            /* 隐藏控制面板 */
+            .container.hidden {
+                transform: translateX(-310px);
+            }
+
+            /* 输入框、按钮、列表框、信息区域等 */
+            input, select, button {
+                width: 100%;
+                padding: 10px;
+                margin: 5px 0;
+                font-size: 15px;
+                padding-top: 5px;
+                box-sizing: border-box;
+            }
+
+            #episodeList {
+                height: 150px; /* 减小高度 */
+                margin-top: 5px;
+                font-size: 14px; /* 稍微减小字体 */
+            }
+
+            /* 搜索按钮样式 */
+            button {
+                background-color: #333;
+                border: 2px solid #333;
+                color: #fff;
+                cursor: pointer;
+            }
+
+            button:hover {
+                background-color: rgba(0, 123, 255, 0.1);
+                border-color: #0056b3;
+                color: #0056b3;
+            }
+
+            /* 列表框样式 */
+            .list-box {
+                background-color: rgba(0, 0, 0, 0.8);
+                padding: 10px;
+                margin-bottom: 20px;
+                border-radius: 5px;
+            }
+
+            .list-box h3 {
+                color: #fff;
+                margin: 0;
+                font-size: 18px;
+            }
+
+            /* 信息区域 */
+            .info {
+                background-color: rgba(0, 0, 0, 0.6);
+                padding: 10px;
+                border-radius: 5px;
+                color: #fff;
+                font-size: 14px;
+            }
+
+            #selectedInfo {
+                margin-top: 10px;
+            }
+
+            /* 控制按钮组 */
+            .button-group {
+                display: flex;
+                justify-content: space-between;
+                margin-top: 10px;
+                gap: 5px; /* 按钮之间添加间距 */
+            }
+
+            .button-group button {
+                padding: 8px;
+                font-size: 14px;
+            }
+
+            /* 调速进度条 */
+            #speedControl {
+                display: flex;
+                align-items: center;
+                margin-top: 20px;
+                width: 100%;  /* 设置宽度为100% */
+                justify-content: space-between;  /* 使倍速文字与进度条分开 */
+            }
+
+            #speedControl input {
+                width: 80%;
+                margin-right: 10px;
+            }
+
+            #speedValue {
+                font-size: 14px;
+                color: #fff;
+            }
+
+            /* 视频播放器 */
+            #player {
+                width: 100%;
+                height: 100vh;
+                background: transparent;
+                position: fixed;
+                top: 0;
+                left: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1;
+            }
+
+            #player video {
+                width: 80%;
+                height: 80%;
+                object-fit: contain;
+                /* 移除背景和圆角，只在视频内容区域添加轻微阴影 */
+                filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.2));
+            }
+
+            /* 自定义右键菜单 */
+            #customContextMenu {
+                display: none;
+                position: absolute;
+                background-color: #333;
+                color: white;
+                border-radius: 5px;
+                box-shadow: 0px 0px 10px rgba(0,0,0,0.3);
+                z-index: 20;
+                padding: 10px;
+                min-width: 50px;
+                max-width: 50px;  
+            }
+
+            #customContextMenu button {
+                background: none;
+                border: none;
+                color: white;
+                padding: 10px;
+                text-align: left;
+                cursor: pointer;
+            }
+
+            #customContextMenu button:hover {
+                background-color: #444;
+            }
+ 
+           #transparentText {
+               position: fixed; /* 改为fixed定位 */
+               bottom: 10px;
+               right: 10px; /* 改为靠右显示 */
+               left: auto; /* 移除左侧定位 */
+               transform: none; /* 移除transform */
+               font-size: 16px;
+               color: rgba(255, 255, 255, 0.5);
+               z-index: 100;
+           }
+
+           /* 搜索区域样式优化 */
+           .search-container {
+               margin-bottom: 15px;
+               position: relative;
+           }
+
+           /* 搜索输入框样式 */
+           #searchQuery {
+               width: 100%;
+               padding: 10px 15px;
+               border: 1px solid rgba(255, 255, 255, 0.3);
+               border-radius: 20px;
+               background: rgba(255, 255, 255, 0.05);
+               color: #fff;
+               font-size: 14px;
+               transition: all 0.3s ease;
+               outline: none;
+               backdrop-filter: blur(5px);
+           }
+
+           #searchQuery:focus {
+               border-color: rgba(255, 255, 255, 0.5);
+               background: rgba(255, 255, 255, 0.1);
+               box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+           }
+
+           #searchQuery::placeholder {
+               color: rgba(255, 255, 255, 0.6);
+           }
+
+           /* 搜索按钮样式 */
+           .search-btn {
+               background: rgba(255, 255, 255, 0.1);
+               border: 1px solid rgba(255, 255, 255, 0.2);
+               border-radius: 20px;
+               color: white;
+               padding: 10px 20px;
+               font-size: 14px;
+               font-weight: 500;
+               cursor: pointer;
+               transition: all 0.3s ease;
+               margin-top: 8px;
+               text-transform: uppercase;
+               letter-spacing: 1px;
+               backdrop-filter: blur(5px);
+           }
+
+           .search-btn:hover {
+               background: rgba(255, 255, 255, 0.2);
+               transform: translateY(-2px);
+               box-shadow: 0 5px 15px rgba(255, 255, 255, 0.1);
+               text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+           }
+
+           /* 搜索结果列表样式 */
+           #resultList, #episodeList {
+               background: rgba(255, 255, 255, 0.05);
+               border: 1px solid rgba(255, 255, 255, 0.15);
+               border-radius: 10px;
+               color: #fff;
+               font-size: 14px;
+               margin-top: 10px;
+               padding: 5px;
+               backdrop-filter: blur(5px);
+           }
+
+           #resultList option, #episodeList option {
+               padding: 8px 12px;
+               margin: 2px 0;
+               border-radius: 5px;
+               cursor: pointer;
+               transition: all 0.2s ease;
+               background: transparent;
+           }
+
+           #resultList option:hover, #episodeList option:hover {
+               background: rgba(255, 255, 255, 0.1);
+           }
+
+           /* 选中状态样式 */
+           #resultList option:checked, #episodeList option:checked {
+               background: rgba(255, 255, 255, 0.15);
+               color: #fff;
+               text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+           }
+
+           /* 当前选中剧集显示样式 */
+           #selectedTitleDisplay {
+               background: rgba(33, 150, 243, 0.2);
+               padding: 10px;
+               border-radius: 8px;
+               margin: 10px 0;
+               font-size: 14px;
+               font-weight: 500;
+               color: #fff;
+               text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+           }
+
+           /* 切换按钮样式 */
+           #toggleButton {
+               position: fixed;
+               top: 10px;
+               left: 320px;
+               background: linear-gradient(45deg, #3a3a3a, #1a1a1a);
+               color: white;
+               border: none;
+               border-radius: 50%;
+               width: 40px;
+               height: 40px;
+               cursor: pointer;
+               z-index: 100;
+               transition: all 0.3s ease;
+               box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+               display: flex;
+               align-items: center;
+               justify-content: center;
+               font-size: 20px;
+               backdrop-filter: blur(5px);
+           }
+
+           #toggleButton:hover {
+               transform: scale(1.1);
+               box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+           }
+
+           #toggleButton.hidden {
+               left: 10px;
+           }
+
+           /* 添加全局毛玻璃效果 */
+           .glass-effect {
+               backdrop-filter: blur(10px);
+               -webkit-backdrop-filter: blur(10px);
+               background: rgba(255, 255, 255, 0.1);
+               border: 1px solid rgba(255, 255, 255, 0.1);
+               box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+           }
+
+           /* 添加淡入动画 */
+           @keyframes fadeIn {
+               from { opacity: 0; transform: translateY(-10px); }
+               to { opacity: 1; transform: translateY(0); }
+           }
+
+           .container {
+               animation: fadeIn 0.3s ease-out;
+           }
+
+           /* 添加移动端媒体查询 */
+           @media screen and (max-width: 768px) {
+               .container {
+                   width: 90%;
+                   left: 50%;
+                   transform: translateX(-50%);
+                   max-height: 80vh;
+                   padding: 10px;
+                   margin-top: 10px;
+               }
+
+               .container.hidden {
+                   transform: translateY(-100%);
+                   left: 50%;
+               }
+
+               #toggleButton {
+                   left: auto;
+                   right: 10px;
+                   top: 10px;
+                   width: 35px;
+                   height: 35px;
+                   font-size: 16px;
+               }
+
+               #toggleButton.hidden {
+                   left: auto;
+                   right: 10px;
+                   top: 10px;
+               }
+
+               #player video {
+                   width: 100%;
+                   height: 100%;
+                   max-height: none;
+               }
+
+               /* 调整搜索框和按钮大小 */
+               #searchQuery {
+                   padding: 12px;
+                   font-size: 16px; /* 更大的字体更容易点击 */
+               }
+
+               .search-btn {
+                   padding: 12px;
+                   font-size: 16px;
+                   margin-top: 5px;
+               }
+
+               /* 调整列表大小 */
+               #resultList, #episodeList {
+                   height: 120px;
+                   font-size: 14px;
+               }
+
+               /* 调整按钮组样式 */
+               .button-group {
+                   gap: 8px;
+               }
+
+               .button-group button {
+                   padding: 12px;
+                   font-size: 16px;
+               }
+
+               /* 调整倍速控制样式 */
+               #speedControl {
+                   margin-top: 10px;
+               }
+
+               #speedControl input {
+                   width: 70%;
+               }
+
+               /* 调整提示信息样式 */
+               #selectedTitleDisplay {
+                   font-size: 14px;
+                   padding: 8px;
+               }
+           }
+        </style>
+    </head>
+    <body>
+        <!-- 视频播放器 -->
+        <div id="player"></div>
+        <!-- 切换按钮 -->
+        <button id="toggleButton" onclick="toggleContainer()">☰</button>
+        <!-- 控制面板容器 -->
+        <div class="container"
+             id="controlContainer">
+            <!-- 搜索框 -->
+            <div class="search-container">
+                <input type="text"
+                       id="searchQuery"
+                       placeholder="请输入短剧名称或关键词" />
+                <button class="search-btn" onclick="searchShortFilm()">搜索</button>
+            </div>
+            <!-- 短剧列表 -->
+            <select id="resultList"
+                    size="10"
+                    onchange="loadEpisodes(); updateSelectedVideoTitle()">
+                <option value=""
+                        disabled=""
+                        selected="">请选择一个短剧</option>
+            </select>
+            <!-- 集数列表 -->
+            <select id="episodeList"
+                    size="10"
+                    onchange="updateSelectedEpisode()">
+                <option value=""
+                        disabled=""
+                        selected="">请选择一个集数观看</option>
+            </select>
+            <!-- 显示选中剧名区域 -->
+            <div id="selectedTitleDisplay">暂无选择剧</div>
+            <!-- 播放按钮组 -->
+            <div class="button-group">
+                <button onclick="playSelected()">播放</button>
+                <button onclick="playPrev()">上集</button>
+                <button onclick="playNext()">下集</button>
+            </div>
+            <!-- 当前剧名信息 -->
+            <div id="resultList">
+                <span id="selectedIndex"></span>
+            </div>
+            <!-- 当前集数信息 -->
+            <div id="selectedInfo">
+                <span id="selectedTitle">暂无选择</span>
+                <span id="selectedUrl">暂无链接</span>
+            </div>
+            <!-- 倍速控制 -->
+            <div id="speedControl">
+                <label for="speedRange">倍速:</label>
+                <input type="range"
+                       id="speedRange"
+                       min="0.5"
+                       max="2.5"
+                       step="0.1"
+                       value="1.5"
+                       onchange="updateSpeed()" />
+                <span id="speedValue">1.5</span>
+            </div>
+           <div id="transparentText">杰哥在线短剧-walle</div>
+        </div>
+        <!-- 自定义右键菜单 -->
+        <div id="customContextMenu">
+            <button onclick="showEpisodeList()">网剧</button>
+            <button onclick="playPrev()">上集</button>
+            <button onclick="playNext()">下集</button>
+            <button onclick="refreshPage()">刷新</button>
+        </div>
+
+        <script>
+                        let selectedSpeed = 1; /* 当前播放倍速 */
+                        let currentEpisodeIndex = -1; /* 当前选中的集数 */
+                        let episodes = []; /* 当前短剧的集数列表 */
+                        let video;  // 定义 video 元素在外部，以便后续更新
+                        let searchTimeout;
+
+                        // 页面加载时恢复之前的状态
+                        window.onload = function() {
+                            const savedQuery = localStorage.getItem('searchQuery');
+                            if (savedQuery) {
+                                document.getElementById('searchQuery').value = savedQuery; // 恢复搜索框的内容
+                            }
+                        
+                            const savedVideoId = localStorage.getItem('selectedVideoId');
+                            if (savedVideoId) {
+                                document.getElementById('resultList').value = savedVideoId;
+                                loadEpisodes(); // 重新加载集数
+                                updateSelectedVideoTitle(); // 更新显示的剧名
+                            }
+                        
+                            const savedEpisodeIndex = localStorage.getItem('currentEpisodeIndex');
+                            if (savedEpisodeIndex) {
+                                document.getElementById('episodeList').selectedIndex = savedEpisodeIndex;
+                                updateSelectedEpisode(); // 恢复选中的集数
+                            }
+                        
+                            // 恢复搜索结果
+                           // searchShortFilm();
+                        };
+
+                        // 右键菜单显示与位置更新
+                        document.addEventListener('contextmenu', function(e) {
+                            e.preventDefault(); // 阻止默认右键菜单
+                            const customMenu = document.getElementById('customContextMenu');
+                            customMenu.style.display = 'block'; // 显示自定义菜单
+                            customMenu.style.left = `${e.pageX}px`; // 更新菜单位置
+                            customMenu.style.top = `${e.pageY}px`;
+                        });
+                        
+                        // 点击空白区域时隐藏右键菜单
+                        document.addEventListener('click', function() {
+                            const customMenu = document.getElementById('customContextMenu');
+                            customMenu.style.display = 'none'; // 点击空白区域时隐藏菜单
+                        });
+                        
+                        // 监听搜索框输入，保存到本地存储
+                        document.getElementById('searchQuery').addEventListener('input', function() {
+                            localStorage.setItem('searchQuery', this.value);
+                        });
+                        
+                        // 加载短剧集数
+                        function loadEpisodes() {
+                            const selectedVideoId = document.getElementById('resultList').value;
+                            if (!selectedVideoId) return; // 如果没有选择短剧，返回
+                        
+                            const apiUrl = `https://www.hhlqilongzhu.cn/api/duanju_fanqie.php?book_id=${encodeURIComponent(selectedVideoId)}`;
+                        
+                            fetch(apiUrl)
+                                .then(response => response.json())
+                                .then(data => {
+                                    const episodeList = document.getElementById('episodeList');
+                                    episodeList.innerHTML = ''; // 清空集数列表
+                                    episodes = data.data || []; // 获取集数数据
+                        
+                                    if (episodes.length > 0) {
+                                        episodes.forEach((item, index) => {
+                                            const option = document.createElement('option');
+                                            option.value = item.url_mp4;
+                                            option.textContent = `${item.title} - ${item.url_mp4}`;
+                                            episodeList.appendChild(option);
+                                        });
+                        
+                                        // 恢复选中的集数
+                                        const savedEpisodeIndex = localStorage.getItem('currentEpisodeIndex');
+                                        if (savedEpisodeIndex && savedEpisodeIndex < episodes.length) {
+                                            episodeList.selectedIndex = savedEpisodeIndex;
+                                            updateSelectedEpisode(); // 恢复集数信息
+                                        }
+                                    } else {
+                                        const option = document.createElement('option');
+                                        option.textContent = '没有找到该短剧的集数';
+                                        episodeList.appendChild(option); // 提示没有找到集数
+                                    }
+                                })
+                                .catch(error => console.error('请求失败:', error)); // 错误处理
+                        }
+                        
+                        // 更新选中的集数信息
+                        function updateSelectedEpisode() {
+                            const episodeList = document.getElementById('episodeList');
+                            const selectedOption = episodeList.options[episodeList.selectedIndex];
+                        
+                            if (selectedOption) {
+                                const title = selectedOption.textContent.split(' - ')[0];
+                                const url = selectedOption.value;
+                                document.getElementById('selectedTitle').textContent = title;
+                                document.getElementById('selectedUrl').textContent = url;
+                                currentEpisodeIndex = episodeList.selectedIndex;
+                                localStorage.setItem('currentEpisodeIndex', currentEpisodeIndex); // 保存当前选中的集数索引
+                            }
+                        }
+                        
+                        function updateSelectedVideoTitle() {
+                            const resultList = document.getElementById('resultList');
+                            const selectedOption = resultList.options[resultList.selectedIndex];
+                        
+                            if (selectedOption) {
+                                document.getElementById('selectedTitleDisplay').textContent = selectedOption.textContent;
+                            } else {
+                                document.getElementById('selectedTitleDisplay').textContent = '暂无剧集';
+                            }
+                        }
+                        
+                        // 搜索功能实现
+                        function searchShortFilm() {
+                            const query = document.getElementById('searchQuery').value.trim();
+                            if (!query) {
+                                alert('请输入短剧名称或关键词');
+                                return;
+                            }
+                        
+                            const apiUrl = `https://www.hhlqilongzhu.cn/api/duanju_fanqie.php?name=${encodeURIComponent(query)}`;
+                        
+                            fetch(apiUrl)
+                                .then(response => response.json())
+                                .then(data => {
+                                    const resultList = document.getElementById('resultList');
+                                    resultList.innerHTML = ''; // 清空搜索结果列表
+                                    if (data && data.data && data.data.length > 0) {
+                                        data.data.forEach((item, index) => {
+                                            const option = document.createElement('option');
+                                            option.value = item.book_id;
+                                            option.textContent = `${item.title} (${item.type})`;
+                                            resultList.appendChild(option); // 填充搜索结果
+                                        });
+                                    } else {
+                                        const option = document.createElement('option');
+                                        option.textContent = '没有找到相关短剧';
+                                        resultList.appendChild(option);
+                                    }
+                                })
+                                .catch(error => console.error('请求失败:', error));
+                        }
+                        
+                        function playSelected() {
+                            if (currentEpisodeIndex >= 0 && currentEpisodeIndex < episodes.length) {
+                                const url = episodes[currentEpisodeIndex].url_mp4;
+                                playVideo(url); // 播放当前选中的视频
+                                updateTitle(); // 更新网页标签页标题  
+                            }
+                        }
+                        
+                        function playPrev() {
+                            if (currentEpisodeIndex > 0) {
+                                currentEpisodeIndex--;
+                                document.getElementById('episodeList').selectedIndex = currentEpisodeIndex;
+                                updateSelectedEpisode(); // 更新当前集数信息
+                               destroyVideo()
+                                playSelected(); // 播放上一集
+                                updateTitle(); // 更新网页标签页标题  
+
+                            }
+                        }
+                        
+                        function playNext() {
+                            if (currentEpisodeIndex < episodes.length - 1) {
+                                currentEpisodeIndex++;
+                                document.getElementById('episodeList').selectedIndex = currentEpisodeIndex;
+                                updateSelectedEpisode(); // 更新当前集数信息
+                                 destroyVideo()
+                                playSelected(); // 播放下一集
+                                updateTitle(); // 更新网页标签页标题  
+
+                            } else {
+                                alert('已经是最后一集了');
+                            }
+                        }
+                           function destroyVideo() {
+                                if (video) {
+                                 video.pause(); // 停止播放
+                                 video.src = ''; // 清空视频源
+                                 video = null; // 删除 video 元素
+                                      }
+                                 }
+
+                        function playVideo(url) {
+                            const player = document.getElementById('player');
+      
+                            if (!video) {
+                                video = document.createElement('video');
+                                video.controls = true;
+                                // 添加视频结束事件监听器
+                                video.addEventListener('ended', function() {
+                                    // 自动播放下一集
+                                    if (currentEpisodeIndex < episodes.length - 1) {
+                                        setTimeout(() => {
+                                            playNext();
+                                        }, 1500); // 延迟1.5秒后播放下一集
+                                    }
+                                });
+
+                                player.innerHTML = '';
+                                player.appendChild(video);
+                            }
+
+                            // 设置自动播放
+                            video.autoplay = true;
+                            video.src = url;
+                            video.play()
+                                .catch(error => {
+                                    console.log('自动播放失败:', error);
+                                    // 某些浏览器可能会阻止自动播放
+                                    video.muted = true; // 静音播放
+                                    video.play(); // 重试播放
+                                });
+                            
+                            // 应用当前的倍速设置
+                            video.playbackRate = selectedSpeed;
+                            document.getElementById('speedValue').textContent = selectedSpeed;
+                            
+                            // 播放3秒后自动隐藏搜索界面
+                            setTimeout(() => {
+                                const container = document.getElementById('controlContainer');
+                                const toggleButton = document.getElementById('toggleButton');
+                                if (!container.classList.contains('hidden')) {
+                                    container.classList.add('hidden');
+                                    toggleButton.classList.add('hidden');
+                                    toggleButton.innerHTML = '☰';
+                                }
+                            }, 3000);
+                        }
+
+
+                        function updateSpeed() {
+                            const speedRange = document.getElementById('speedRange');
+                            selectedSpeed = speedRange.value;
+                            document.getElementById('speedValue').textContent = selectedSpeed;
+                            const video = document.querySelector('video');
+                            if (video) {
+                                video.playbackRate = selectedSpeed; // 直接设置视频的倍速
+
+                            }
+                        }
+                            //容器显隐
+                          function showEpisodeList() {
+                                    const container = document.getElementById('controlContainer');
+                                    container.classList.toggle('hidden');
+                        }
+                        
+                        function refreshPage() {
+                            location.reload(); // 刷新页面
+                        }
+                             // 更新浏览器标签页上的标题
+                        function updateTitle() {
+                           document.title = ` 第${currentEpisodeIndex + 1}集`;
+                        }
+
+                        // 切换控制面板显示/隐藏
+                        let hideTimeout;
+                        function toggleContainer() {
+                            const container = document.getElementById('controlContainer');
+                            const toggleButton = document.getElementById('toggleButton');
+                            container.classList.toggle('hidden');
+                            toggleButton.classList.toggle('hidden');
+                            
+                            // 更新按钮图标
+                            toggleButton.innerHTML = container.classList.contains('hidden') ? '☰' : '×';
+                            
+                            // 如果显示了搜索界面，设置自动隐藏定时器
+                            if (!container.classList.contains('hidden')) {
+                                if (hideTimeout) clearTimeout(hideTimeout);
+                                hideTimeout = setTimeout(() => {
+                                    container.classList.add('hidden');
+                                    toggleButton.classList.add('hidden');
+                                    toggleButton.innerHTML = '☰';
+                                }, 5000); // 5秒后自动隐藏
+                            } else {
+                                // 如果手动隐藏，清除定时器
+                                if (hideTimeout) clearTimeout(hideTimeout);
+                            }
+                        }
+
+                        // 添加快捷键支持
+                        document.addEventListener('keydown', function(e) {
+                            if (e.key === 'Escape') { // ESC键
+                                toggleContainer();
+                            }
+                        });
+
+                        // 添加鼠标滚轮事件监听
+                        document.addEventListener('wheel', function(e) {
+                            // 检查是否有视频在播放
+                            if (!video) return;
+                            
+                            // 加节流，防止滚动太快
+                            if (this.wheelTimeout) {
+                                clearTimeout(this.wheelTimeout);
+                            }
+                            
+                            this.wheelTimeout = setTimeout(() => {
+                                // deltaY > 0 表示向下滚动，< 0 表示向上滚动
+                                if (e.deltaY > 0) {
+                                    // 向下滚动播放下一集
+                                    if (currentEpisodeIndex < episodes.length - 1) {
+                                        playNext();
+                                    }
+                                } else {
+                                    // 向上滚动播放上一集
+                                    if (currentEpisodeIndex > 0) {
+                                        playPrev();
+                                    }
+                                }
+                            }, 300); // 300ms的节流时间
+                        }, { passive: true }); // 使用passive提升滚动性能
+
+                        // 添加提示信息显示功能
+                        function showTip(message) {
+                            const tip = document.createElement('div');
+                            tip.style.cssText = `
+                                position: fixed;
+                                top: 50%;
+                                left: 50%;
+                                transform: translate(-50%, -50%);
+                                background: rgba(0, 0, 0, 0.7);
+                                color: white;
+                                padding: 10px 20px;
+                                border-radius: 5px;
+                                z-index: 1000;
+                                pointer-events: none;
+                                animation: fadeOut 1s forwards;
+                            `;
+                            tip.textContent = message;
+                            document.body.appendChild(tip);
+                            
+                            setTimeout(() => {
+                                tip.remove();
+                            }, 1000);
+                        }
+
+                        // 修改 playNext 和 playPrev 函数，添加提示
+                        function playNext() {
+                            if (currentEpisodeIndex < episodes.length - 1) {
+                                currentEpisodeIndex++;
+                                document.getElementById('episodeList').selectedIndex = currentEpisodeIndex;
+                                updateSelectedEpisode();
+                                destroyVideo();
+                                playSelected();
+                                updateTitle();
+                                showTip('下一集');
+                            } else {
+                                showTip('已经是最后一集了');
+                            }
+                        }
+
+                        function playPrev() {
+                            if (currentEpisodeIndex > 0) {
+                                currentEpisodeIndex--;
+                                document.getElementById('episodeList').selectedIndex = currentEpisodeIndex;
+                                updateSelectedEpisode();
+                                destroyVideo();
+                                playSelected();
+                                updateTitle();
+                                showTip('上一集');
+                            } else {
+                                showTip('已经是第一集了');
+                            }
+                        }
+
+                        // 添加触摸滑动支持
+                        let touchStartY = 0;
+                        let touchEndY = 0;
+                        
+                        document.addEventListener('touchstart', function(e) {
+                            touchStartY = e.touches[0].clientY;
+                        }, { passive: true });
+                        
+                        document.addEventListener('touchend', function(e) {
+                            touchEndY = e.changedTouches[0].clientY;
+                            const diffY = touchEndY - touchStartY;
+                            
+                            // 检查是否有视频在播放
+                            if (!video) return;
+                            
+                            // 上下滑动切换集数
+                            if (Math.abs(diffY) > 50) { // 滑动距离大于50px才触发
+                                if (diffY > 0) {
+                                    // 向下滑动播放上一集
+                                    if (currentEpisodeIndex > 0) {
+                                        playPrev();
+                                    }
+                                } else {
+                                    // 向上滑动播放下一集
+                                    if (currentEpisodeIndex < episodes.length - 1) {
+                                        playNext();
+                                    }
+                                }
+                            }
+                        }, { passive: true });
+        </script>
+
+    </body>
+
+</html>
